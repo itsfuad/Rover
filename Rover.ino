@@ -18,14 +18,15 @@ constexpr int ECHO_PIN = 14;
 constexpr int WARNING_LED = 27;
 constexpr int LDR_PIN = 35;
 constexpr int HEADLIGHT_PIN = 25;
+constexpr int CONN_LED = 2;
 
 // Constants
 constexpr int OBSTACLE_THRESHOLD = 15;
 constexpr int BLINK_INTERVAL = 500;
 constexpr int ULTRASONIC_TIMEOUT = 30000;
-constexpr int LDR_THRESHOLD = 30;
+constexpr int LDR_THRESHOLD = 60;
 constexpr int LEFT_MOTOR_SPEED = 255;
-constexpr int RIGHT_MOTOR_SPEED = 140;
+constexpr int RIGHT_MOTOR_SPEED = 240;
 
 enum class Direction : uint8_t {
     Stop = 0,
@@ -33,6 +34,12 @@ enum class Direction : uint8_t {
     Backward,
     Left,
     Right
+};
+
+// Command types
+enum class CommandType : uint8_t {
+    Movement = 0,
+    CheckConnection
 };
 
 struct SensorData {
@@ -43,7 +50,9 @@ struct SensorData {
     int lightLevel;
 };
 
+// Command data structure
 struct CommandData {
+    CommandType type;
     Direction direction;
 };
 
@@ -98,7 +107,12 @@ public:
         readSensors();
         handleWarningLED();
         handleHeadlights();
-        Serial.printf("CPU Temp: %.2f C\n", temperatureRead());
+        //print sensor data
+        Serial.printf("Temperature: %.2f\n", sensorData.temperature);
+        Serial.printf("Humidity: %.2f\n", sensorData.humidity);
+        Serial.printf("Air Quality: %d\n", sensorData.airQuality);
+        Serial.printf("Obstacle: %s\n", sensorData.obstacle ? "Yes" : "No");
+        Serial.printf("Light Level: %d\n", sensorData.lightLevel);
     }
 
 private:
@@ -108,6 +122,13 @@ private:
         if (data_len == sizeof(CommandData)) {
             CommandData command;
             memcpy(&command, data, sizeof(command));
+
+            if (command.type == CommandType::CheckConnection) {
+                //Turn on LED
+                digitalWrite(CONN_LED, HIGH);
+                return;
+            }
+
             instance().processCommand(command.direction);
         }
     }
@@ -164,8 +185,8 @@ private:
     }
 
     void readDHT11() {
-        sensorData.temperature = dht.readTemperature();
-        sensorData.humidity = dht.readHumidity();
+        sensorData.temperature = dht.readTemperature() + 20;
+        sensorData.humidity = dht.readHumidity() + 40;
     }
 
     void readMQ135() {
@@ -185,6 +206,7 @@ private:
 
         long duration = pulseIn(ECHO_PIN, HIGH, ULTRASONIC_TIMEOUT);
         float distance = duration * 0.034 / 2;
+        Serial.printf("Distance: %.2f\n", distance);
         sensorData.obstacle = (distance > 0 && distance < OBSTACLE_THRESHOLD);
     }
 
